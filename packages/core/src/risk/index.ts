@@ -1,2 +1,1 @@
-export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
-
+export * from "./scoreRisk";
