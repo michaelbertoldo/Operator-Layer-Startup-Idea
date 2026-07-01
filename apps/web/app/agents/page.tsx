@@ -2,9 +2,14 @@ import { PageHeader } from "@/components/shell/page-header";
 import { StatusBadge } from "@/components/shell/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Td, Th, Table } from "@/components/ui/table";
-import { agents, formatCurrency } from "@/lib/mock-data";
+import { getAgents } from "@/lib/data";
+import { formatCurrency } from "@/lib/format";
 
-export default function AgentsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AgentsPage() {
+  const agents = await getAgents();
+
   return (
     <>
       <PageHeader
@@ -32,12 +37,12 @@ export default function AgentsPage() {
                     <p className="font-medium text-slate-900">{agent.name}</p>
                     <p className="text-xs text-slate-500">{agent.id}</p>
                   </Td>
-                  <Td>{agent.owner}</Td>
+                  <Td>{agent.ownerName}</Td>
                   <Td><StatusBadge value={agent.status} /></Td>
-                  <Td>{formatCurrency(agent.weeklyBudget)}</Td>
-                  <Td>{formatCurrency(agent.spentThisWeek)}</Td>
-                  <Td>{agent.allowedVendors}</Td>
-                  <Td><StatusBadge value={agent.risk} /></Td>
+                  <Td>{formatCurrency(agent.weeklyBudgetCents)}</Td>
+                  <Td>{formatCurrency(agent.spentThisWeekCents)}</Td>
+                  <Td>{agent.approvedVendorCount}</Td>
+                  <Td><StatusBadge value={agent.riskLevel} /></Td>
                 </tr>
               ))}
             </tbody>

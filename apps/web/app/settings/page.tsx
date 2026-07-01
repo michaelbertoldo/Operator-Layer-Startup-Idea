@@ -1,8 +1,13 @@
 import { PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCompanySettings } from "@/lib/data";
 
-export default function SettingsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const company = await getCompanySettings();
+
   return (
     <>
       <PageHeader
@@ -17,15 +22,15 @@ export default function SettingsPage() {
           <CardContent className="space-y-4 text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="text-slate-500">Name</span>
-              <span className="font-medium text-slate-950">Acme AI Operations</span>
+              <span className="font-medium text-slate-950">{company?.name ?? "No workspace"}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-slate-500">Environment</span>
-              <Badge variant="success">Fake-money MVP</Badge>
+              <Badge variant="success">{company?.environment ?? "Not configured"}</Badge>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-slate-500">Payment executor</span>
-              <span className="font-medium text-slate-950">FAKE_X402</span>
+              <span className="font-medium text-slate-950">{company?.paymentExecutor ?? "Not configured"}</span>
             </div>
           </CardContent>
         </Card>

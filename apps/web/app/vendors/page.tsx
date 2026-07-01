@@ -2,9 +2,14 @@ import { PageHeader } from "@/components/shell/page-header";
 import { StatusBadge } from "@/components/shell/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Td, Th, Table } from "@/components/ui/table";
-import { formatCurrency, vendors } from "@/lib/mock-data";
+import { getVendors } from "@/lib/data";
+import { formatCurrency } from "@/lib/format";
 
-export default function VendorsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function VendorsPage() {
+  const vendors = await getVendors();
+
   return (
     <>
       <PageHeader
@@ -32,8 +37,8 @@ export default function VendorsPage() {
                   </Td>
                   <Td>{vendor.category}</Td>
                   <Td><StatusBadge value={vendor.status} /></Td>
-                  <Td>{vendor.requests}</Td>
-                  <Td>{formatCurrency(vendor.spend)}</Td>
+                  <Td>{vendor.requestCount}</Td>
+                  <Td>{formatCurrency(vendor.simulatedSpendCents)}</Td>
                 </tr>
               ))}
             </tbody>

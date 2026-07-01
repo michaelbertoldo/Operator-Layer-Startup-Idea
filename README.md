@@ -39,6 +39,13 @@ Run the web app:
 corepack pnpm dev
 ```
 
+Set up the local SQLite database:
+
+```bash
+corepack pnpm db:push
+corepack pnpm db:seed
+```
+
 Run checks:
 
 ```bash

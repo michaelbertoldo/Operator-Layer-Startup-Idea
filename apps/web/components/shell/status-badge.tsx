@@ -1,8 +1,7 @@
 import { Badge } from "@/components/ui/badge";
-import type { AgentStatus, RequestStatus, RiskLevel, VendorStatus } from "@/lib/mock-data";
 
 type StatusBadgeProps = {
-  value: AgentStatus | VendorStatus | RequestStatus | RiskLevel | string;
+  value: string;
 };
 
 export function StatusBadge({ value }: StatusBadgeProps) {
@@ -23,4 +22,3 @@ export function StatusBadge({ value }: StatusBadgeProps) {
 
   return <Badge variant={variant}>{value}</Badge>;
 }
-

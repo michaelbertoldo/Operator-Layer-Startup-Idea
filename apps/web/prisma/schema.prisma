@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Company {
+  id              String           @id
+  name            String
+  environment     String
+  paymentExecutor String
+  createdAt       DateTime         @default(now())
+  users           User[]
+  agents          Agent[]
+  vendors         Vendor[]
+  policies        Policy[]
+  paymentRequests PaymentRequest[]
+  auditLogs       AuditLog[]
+}
+
+model User {
+  id        String   @id
+  companyId String
+  name      String
+  email     String   @unique
+  role      String
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+}
+
+model Agent {
+  id                    String           @id
+  companyId             String
+  policyId              String?
+  name                  String
+  status                String
+  ownerName             String
+  weeklyBudgetCents     Int
+  spentThisWeekCents    Int
+  approvedVendorCount   Int
+  riskLevel             String
+  createdAt             DateTime         @default(now())
+  company               Company          @relation(fields: [companyId], references: [id])
+  policy                Policy?          @relation(fields: [policyId], references: [id])
+  paymentRequests       PaymentRequest[]
+}
+
+model Vendor {
+  id                  String           @id
+  companyId           String
+  name                String
+  category            String
+  status              String
+  requestCount        Int
+  simulatedSpendCents Int
+  createdAt           DateTime         @default(now())
+  company             Company          @relation(fields: [companyId], references: [id])
+  paymentRequests     PaymentRequest[]
+}
+
+model Policy {
+  id                             String   @id
+  companyId                      String
+  name                           String
+  maxTransactionCents            Int
+  weeklyBudgetCents              Int
+  approvalThresholdCents         Int
+  allowedCategories              String
+  requireApprovalForNewVendor    Boolean
+  createdAt                      DateTime @default(now())
+  company                        Company  @relation(fields: [companyId], references: [id])
+  agents                         Agent[]
+}
+
+model PaymentRequest {
+  id             String     @id
+  companyId      String
+  agentId        String
+  vendorId       String
+  category       String
+  amountCents    Int
+  status         String
+  policyDecision String
+  riskLevel      String
+  createdAt      DateTime   @default(now())
+  company        Company    @relation(fields: [companyId], references: [id])
+  agent          Agent      @relation(fields: [agentId], references: [id])
+  vendor         Vendor     @relation(fields: [vendorId], references: [id])
+  auditLogs      AuditLog[]
+}
+
+model AuditLog {
+  id               String          @id
+  companyId        String
+  paymentRequestId String?
+  actor            String
+  action           String
+  target           String
+  detail           String
+  createdAt        DateTime        @default(now())
+  company          Company         @relation(fields: [companyId], references: [id])
+  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+}
+

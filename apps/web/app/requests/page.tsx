@@ -2,14 +2,19 @@ import { PageHeader } from "@/components/shell/page-header";
 import { StatusBadge } from "@/components/shell/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Td, Th, Table } from "@/components/ui/table";
-import { formatCurrency, paymentRequests } from "@/lib/mock-data";
+import { getPaymentRequests } from "@/lib/data";
+import { formatCurrency, formatTime } from "@/lib/format";
 
-export default function RequestsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function RequestsPage() {
+  const paymentRequests = await getPaymentRequests();
+
   return (
     <>
       <PageHeader
         title="Requests"
-        description="Mock payment requests showing policy decisions, risk level, final status, and the agent-vendor relationship."
+        description="Database-backed payment requests showing policy decisions, risk level, final status, and the agent-vendor relationship."
       />
       <Card>
         <CardContent className="overflow-x-auto p-0">
@@ -31,11 +36,11 @@ export default function RequestsPage() {
               {paymentRequests.map((request) => (
                 <tr key={request.id}>
                   <Td className="font-medium text-slate-900">{request.id}</Td>
-                  <Td>{request.createdAt}</Td>
-                  <Td>{request.agent}</Td>
-                  <Td>{request.vendor}</Td>
+                  <Td>{formatTime(request.createdAt)}</Td>
+                  <Td>{request.agent.name}</Td>
+                  <Td>{request.vendor.name}</Td>
                   <Td>{request.category}</Td>
-                  <Td>{formatCurrency(request.amount)}</Td>
+                  <Td>{formatCurrency(request.amountCents)}</Td>
                   <Td>{request.policyDecision}</Td>
                   <Td><StatusBadge value={request.riskLevel} /></Td>
                   <Td><StatusBadge value={request.status} /></Td>

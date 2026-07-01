@@ -2,11 +2,14 @@ import { PageHeader } from "@/components/shell/page-header";
 import { StatusBadge } from "@/components/shell/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency, paymentRequests } from "@/lib/mock-data";
+import { getApprovalRequests } from "@/lib/data";
+import { formatCurrency } from "@/lib/format";
 
-const approvals = paymentRequests.filter((request) => request.status === "Needs approval");
+export const dynamic = "force-dynamic";
 
-export default function ApprovalsPage() {
+export default async function ApprovalsPage() {
+  const approvals = await getApprovalRequests();
+
   return (
     <>
       <PageHeader
@@ -25,7 +28,7 @@ export default function ApprovalsPage() {
                     <StatusBadge value={request.status} />
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    {request.agent} requested {formatCurrency(request.amount)} for {request.vendor}.
+                    {request.agent.name} requested {formatCurrency(request.amountCents)} for {request.vendor.name}.
                   </p>
                 </div>
                 <div className="flex gap-2">

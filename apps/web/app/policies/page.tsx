@@ -1,14 +1,19 @@
 import { PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { policies, formatCurrency } from "@/lib/mock-data";
+import { getPolicies } from "@/lib/data";
+import { formatCurrency } from "@/lib/format";
 
-export default function PoliciesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PoliciesPage() {
+  const policies = await getPolicies();
+
   return (
     <>
       <PageHeader
         title="Policies"
-        description="Static policy controls for transaction limits, weekly budgets, allowed categories, and new vendor approval routing."
+        description="Database-backed policy controls for transaction limits, weekly budgets, allowed categories, and new vendor approval routing."
       />
       <section className="grid gap-4 xl:grid-cols-3">
         {policies.map((policy) => (
@@ -24,25 +29,25 @@ export default function PoliciesPage() {
               <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <dt className="text-slate-500">Max transaction</dt>
-                  <dd className="mt-1 font-medium text-slate-950">{formatCurrency(policy.maxTransaction)}</dd>
+                  <dd className="mt-1 font-medium text-slate-950">{formatCurrency(policy.maxTransactionCents)}</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Weekly budget</dt>
-                  <dd className="mt-1 font-medium text-slate-950">{formatCurrency(policy.weeklyBudget)}</dd>
+                  <dd className="mt-1 font-medium text-slate-950">{formatCurrency(policy.weeklyBudgetCents)}</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Approval threshold</dt>
-                  <dd className="mt-1 font-medium text-slate-950">{formatCurrency(policy.approvalThreshold)}</dd>
+                  <dd className="mt-1 font-medium text-slate-950">{formatCurrency(policy.approvalThresholdCents)}</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">New vendors</dt>
                   <dd className="mt-1 font-medium text-slate-950">
-                    {policy.newVendorApproval ? "Approval required" : "Auto allowed"}
+                    {policy.requireApprovalForNewVendor ? "Approval required" : "Auto allowed"}
                   </dd>
                 </div>
               </dl>
               <div className="mt-5 flex flex-wrap gap-2">
-                {policy.categories.map((category) => (
+                {policy.allowedCategories.split("|").map((category) => (
                   <Badge key={category}>{category}</Badge>
                 ))}
               </div>
