@@ -1,0 +1,6 @@
+export type AuditAction =
+  | "POLICY_EVALUATED"
+  | "RISK_SCORED"
+  | "PAYMENT_SIMULATED"
+  | "APPROVAL_REQUESTED";
+
