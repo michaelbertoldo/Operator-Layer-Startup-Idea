@@ -85,6 +85,11 @@ model PaymentRequest {
   status         String
   policyDecision String
   riskLevel      String
+  riskScore      Int        @default(0)
+  fakeTransactionId String?
+  fakeRail       String?
+  fakeAsset      String?
+  executedAt     DateTime?
   createdAt      DateTime   @default(now())
   company        Company    @relation(fields: [companyId], references: [id])
   agent          Agent      @relation(fields: [agentId], references: [id])
@@ -104,4 +109,3 @@ model AuditLog {
   company          Company         @relation(fields: [companyId], references: [id])
   paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
 }
-
