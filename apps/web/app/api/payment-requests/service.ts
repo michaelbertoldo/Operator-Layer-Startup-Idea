@@ -237,10 +237,18 @@ export async function createPaymentRequest(
     };
   });
 
+  const auditLogs = await prisma.auditLog.findMany({
+    where: { paymentRequestId },
+    orderBy: { createdAt: "asc" }
+  });
+
   return {
     ok: true as const,
     status: 201,
-    data: result
+    data: {
+      ...result,
+      auditLogs
+    }
   };
 }
 
@@ -335,4 +343,3 @@ async function createAuditLog(
     }
   });
 }
-
