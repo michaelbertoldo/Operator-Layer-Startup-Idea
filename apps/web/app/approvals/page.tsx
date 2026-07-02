@@ -1,13 +1,25 @@
 import { PageHeader } from "@/components/shell/page-header";
 import { StatusBadge } from "@/components/shell/status-badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getApprovalRequests } from "@/lib/data";
 import { formatCurrency } from "@/lib/format";
+import { ApprovalActionButtons } from "./approval-action-buttons";
+import {
+  approvePaymentRequestAction,
+  rejectPaymentRequestAction
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApprovalsPage() {
+type ApprovalsPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+    status?: string;
+  }>;
+};
+
+export default async function ApprovalsPage({ searchParams }: ApprovalsPageProps) {
+  const params = await searchParams;
   const approvals = await getApprovalRequests();
 
   return (
@@ -16,6 +28,20 @@ export default async function ApprovalsPage() {
         title="Approvals"
         description="Requests routed for human authorization after policy or risk checks require review."
       />
+      {params?.error ? (
+        <Card className="mb-4 border-red-200 bg-red-50">
+          <CardContent>
+            <p className="text-sm font-medium text-red-700">{params.error}</p>
+          </CardContent>
+        </Card>
+      ) : null}
+      {params?.status ? (
+        <Card className="mb-4 border-emerald-200 bg-emerald-50">
+          <CardContent>
+            <p className="text-sm font-medium text-emerald-700">{params.status}</p>
+          </CardContent>
+        </Card>
+      ) : null}
       <section className="grid gap-4">
         {approvals.length ? (
           approvals.map((request) => (
@@ -31,10 +57,11 @@ export default async function ApprovalsPage() {
                     {request.agent.name} requested {formatCurrency(request.amountCents)} for {request.vendor.name}.
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button type="button" variant="secondary">Reject</Button>
-                  <Button type="button">Approve</Button>
-                </div>
+                <ApprovalActionButtons
+                  requestId={request.id}
+                  approveAction={approvePaymentRequestAction}
+                  rejectAction={rejectPaymentRequestAction}
+                />
               </CardContent>
             </Card>
           ))
@@ -49,4 +76,3 @@ export default async function ApprovalsPage() {
     </>
   );
 }
-
