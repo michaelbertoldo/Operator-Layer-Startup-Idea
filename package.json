@@ -1,0 +1,19 @@
+{
+  "name": "operatorlayer-lite",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "corepack pnpm --filter @operatorlayer/web dev",
+    "build": "corepack pnpm -r build",
+    "typecheck": "corepack pnpm -r typecheck",
+    "test": "corepack pnpm -r test",
+    "db:push": "corepack pnpm --filter @operatorlayer/web db:push",
+    "db:seed": "corepack pnpm --filter @operatorlayer/web db:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

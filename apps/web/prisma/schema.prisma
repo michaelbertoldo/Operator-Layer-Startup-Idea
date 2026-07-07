@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum ReservationState {
+  ACTIVE
+  CAPTURED
+  RELEASED
+  EXPIRED
+}
+
+model Company {
+  id              String           @id
+  name            String
+  environment     String
+  paymentExecutor String
+  frozenAt       DateTime?
+  freezeReason   String?
+  createdAt       DateTime         @default(now())
+  users           User[]
+  agents          Agent[]
+  vendors         Vendor[]
+  policies        Policy[]
+  paymentRequests PaymentRequest[]
+  auditLogs       AuditLog[]
+  idempotencyKeys IdempotencyKey[]
+  anomalyEvents   SpendAnomalyEvent[]
+}
+
+model User {
+  id        String   @id
+  companyId String
+  name      String
+  email     String   @unique
+  role      String
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+}
+
+model Agent {
+  id                    String           @id
+  companyId             String
+  policyId              String?
+  name                  String
+  status                String
+  ownerName             String
+  weeklyBudgetCents     Int
+  spentThisWeekCents    Int
+  approvedVendorCount   Int
+  riskLevel             String
+  frozenAt              DateTime?
+  freezeReason          String?
+  createdAt             DateTime         @default(now())
+  company               Company          @relation(fields: [companyId], references: [id])
+  policy                Policy?          @relation(fields: [policyId], references: [id])
+  paymentRequests       PaymentRequest[]
+  budgetPeriods         AgentBudgetPeriod[]
+  reservations          SpendReservation[]
+  idempotencyKeys       IdempotencyKey[]
+  apiKeys               AgentApiKey[]
+  anomalyEvents         SpendAnomalyEvent[]
+}
+
+model Vendor {
+  id                  String           @id
+  companyId           String
+  name                String
+  category            String
+  status              String
+  requestCount        Int
+  simulatedSpendCents Int
+  createdAt           DateTime         @default(now())
+  company             Company          @relation(fields: [companyId], references: [id])
+  paymentRequests     PaymentRequest[]
+}
+
+model Policy {
+  id                             String   @id
+  companyId                      String
+  name                           String
+  maxTransactionCents            Int
+  weeklyBudgetCents              Int
+  approvalThresholdCents         Int
+  allowedCategories              String
+  requireApprovalForNewVendor    Boolean
+  createdAt                      DateTime @default(now())
+  company                        Company  @relation(fields: [companyId], references: [id])
+  agents                         Agent[]
+}
+
+model PaymentRequest {
+  id             String     @id
+  companyId      String
+  agentId        String
+  vendorId       String
+  category       String
+  amountCents    Int
+  status         String
+  policyDecision String
+  riskLevel      String
+  riskScore      Int        @default(0)
+  fakeTransactionId String?
+  fakeRail       String?
+  fakeAsset      String?
+  executedAt     DateTime?
+  createdAt      DateTime   @default(now())
+  company        Company    @relation(fields: [companyId], references: [id])
+  agent          Agent      @relation(fields: [agentId], references: [id])
+  vendor         Vendor     @relation(fields: [vendorId], references: [id])
+  auditLogs      AuditLog[]
+  reservation    SpendReservation?
+  idempotencyKey IdempotencyKey?
+}
+
+model AuditLog {
+  id               String          @id
+  companyId        String
+  paymentRequestId String?
+  actor            String
+  action           String
+  target           String
+  detail           String
+  prevHash         String?
+  hash             String            @default("")
+  createdAt        DateTime        @default(now())
+  company          Company         @relation(fields: [companyId], references: [id])
+  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+}
+
+model AgentBudgetPeriod {
+  id                String             @id
+  agentId           String
+  periodKey         String
+  budgetCents       Int
+  spentCents        Int                @default(0)
+  reservedCents     Int                @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  agent             Agent              @relation(fields: [agentId], references: [id])
+  reservations      SpendReservation[]
+
+  @@unique([agentId, periodKey])
+  @@index([periodKey])
+}
+
+model SpendReservation {
+  id               String             @id
+  agentId          String
+  budgetPeriodId   String
+  paymentRequestId String?            @unique
+  amountCents      Int
+  state            ReservationState    @default(ACTIVE)
+  expiresAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  agent            Agent               @relation(fields: [agentId], references: [id])
+  budgetPeriod     AgentBudgetPeriod   @relation(fields: [budgetPeriodId], references: [id])
+  paymentRequest   PaymentRequest?     @relation(fields: [paymentRequestId], references: [id])
+
+  @@index([agentId, state])
+  @@index([budgetPeriodId, state])
+}
+
+model IdempotencyKey {
+  id               String          @id
+  companyId        String
+  agentId          String?
+  paymentRequestId String?         @unique
+  key              String
+  requestHash      String
+  responseBody     String?
+  createdAt        DateTime        @default(now())
+  company          Company         @relation(fields: [companyId], references: [id])
+  agent            Agent?          @relation(fields: [agentId], references: [id])
+  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+
+  @@unique([companyId, key])
+  @@index([agentId])
+}
+
+model AgentApiKey {
+  id              String    @id
+  agentId         String
+  name            String
+  keyHash         String    @unique
+  keyPrefix       String
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  agent           Agent     @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([keyPrefix])
+}
+
+model SpendAnomalyEvent {
+  id        String   @id
+  companyId String
+  agentId   String
+  kind      String
+  detail    String
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+  agent     Agent    @relation(fields: [agentId], references: [id])
+
+  @@index([companyId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([kind])
+}

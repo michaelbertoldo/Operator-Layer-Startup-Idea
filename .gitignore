@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local database
+*.db
+*.db-journal
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Local files
+.DS_Store
+*.log
