@@ -11,8 +11,12 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@operatorlayer/core": "workspace:*"
+    "@operatorlayer/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.24.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
 }
 
