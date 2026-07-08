@@ -1,61 +1,56 @@
-import { createHash } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+/**
+ * authenticateAgent.ts — prove *which* agent is calling.
+ *
+ * The old flow trusted `agentId` from the request body. Anyone could claim to
+ * be any agent. Here the request carries a bearer token; we hash it and look it
+ * up. `revokedAt` gives you an instant kill switch (great demo moment).
+ *
+ * (Python analogy: FastAPI dependency that reads the Authorization header,
+ *  hashes it, and returns the Agent or raises 401.)
+ */
 
-export type AuthenticatedAgent = {
-  id: string;
-  companyId: string;
-  status: string;
+import { createHash } from "node:crypto";
+
+export type AuthedAgent = { agentId: string; apiKeyId: string; companyId: string };
+
+/** Minimal DB surface — avoids coupling this module to @prisma/client. */
+export type AuthenticateAgentDb = {
+  agentApiKey: {
+    findUnique(args: {
+      where: { keyHash: string };
+      select: { id: true; agentId: true; revokedAt: true; agent: { select: { companyId: true } } };
+    }): Promise<{ id: string; agentId: string; revokedAt: Date | null; agent: { companyId: string } } | null>;
+    update(args: {
+      where: { id: string };
+      data: { lastUsedAt: Date };
+    }): Promise<unknown>;
+  };
 };
 
 export async function authenticateAgent(
-  prisma: PrismaClient,
-  authorizationHeader: string | null
-): Promise<AuthenticatedAgent | null> {
-  const token = extractBearerToken(authorizationHeader);
+  db: AuthenticateAgentDb,
+  authorizationHeader: string | null,
+): Promise<AuthedAgent | null> {
+  if (!authorizationHeader?.startsWith("Bearer ")) return null;
+  const presented = authorizationHeader.slice("Bearer ".length).trim();
+  if (!presented) return null;
 
-  if (!token) {
-    return null;
-  }
-
-  const keyHash = hashApiKey(token);
-  const apiKey = await prisma.agentApiKey.findUnique({
+  const keyHash = sha256(presented);
+  const record = await db.agentApiKey.findUnique({
     where: { keyHash },
-    include: {
-      agent: true
-    }
+    select: { id: true, agentId: true, revokedAt: true, agent: { select: { companyId: true } } },
   });
 
-  if (!apiKey || apiKey.revokedAt) {
-    return null;
-  }
+  if (!record || record.revokedAt) return null; // unknown or killed
 
-  await prisma.agentApiKey.update({
-    where: { id: apiKey.id },
-    data: { lastUsedAt: new Date() }
-  });
+  // Best-effort last-used stamp; don't block the request on it.
+  db.agentApiKey
+    .update({ where: { id: record.id }, data: { lastUsedAt: new Date() } })
+    .catch(() => {});
 
-  return {
-    id: apiKey.agent.id,
-    companyId: apiKey.agent.companyId,
-    status: apiKey.agent.status
-  };
+  return { agentId: record.agentId, apiKeyId: record.id, companyId: record.agent.companyId };
 }
 
-export function hashApiKey(apiKey: string) {
-  return createHash("sha256").update(apiKey).digest("hex");
+export function sha256(s: string): string {
+  return createHash("sha256").update(s).digest("hex");
 }
-
-function extractBearerToken(authorizationHeader: string | null) {
-  if (!authorizationHeader) {
-    return null;
-  }
-
-  const [scheme, token] = authorizationHeader.split(" ");
-
-  if (scheme !== "Bearer" || !token) {
-    return null;
-  }
-
-  return token;
-}
-

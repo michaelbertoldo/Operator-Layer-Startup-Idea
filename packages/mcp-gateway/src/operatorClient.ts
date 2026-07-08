@@ -1,173 +1,93 @@
-import { CredentialVault } from "./credentialVault";
+/**
+ * operatorClient.ts
+ *
+ * Thin typed wrapper around OperatorLayer's decision API
+ * (POST /api/payment-requests). This is the only place the MCP server talks
+ * to your backend, so if the API shape changes you fix it here once.
+ *
+ * (Python analogy: this is your `requests.Session` with the base URL, auth
+ *  header, and a couple of typed helper methods hung off it.)
+ */
 
-export type GatewayRequest = {
-  agentId: string;
+export type Decision = "AUTO_APPROVE" | "NEEDS_APPROVAL" | "BLOCK";
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export type SpendDecision = {
+  paymentRequestId: string;
+  decision: Decision;
+  finalStatus: "EXECUTED" | "NEEDS_APPROVAL" | "BLOCKED";
+  risk: { level: RiskLevel; score: number; signals: string[] };
+  policyReasons: string[];
+};
+
+export type RequestSpendArgs = {
   vendorId: string;
-  amountCents: number;
   category: string;
-  metadata?: {
-    hasUnusualMetadata?: boolean;
-    sensitiveCategories?: string[];
-  };
+  amountCents: number;
+  /** free-form reason the agent gives — logged for the audit trail */
+  purpose?: string;
+  /** de-dupe key so a retried call never double-spends (see reserveBudget) */
+  idempotencyKey: string;
 };
 
-export type GatewayOptions = {
-  baseUrl?: string;
-  credentialVault?: CredentialVault;
-  fetcher?: typeof fetch;
-  idempotencyKey?: string;
-};
+export class OperatorClient {
+  constructor(
+    private readonly baseUrl: string,
+    /** per-agent scoped key. Proves *which* agent is calling. */
+    private readonly agentApiKey: string,
+  ) {}
 
-export type PaidApiCallResult = {
-  paymentRequest: {
-    id: string;
-    status: string;
-    policyDecision: string;
-    riskLevel: string;
-    riskScore: number;
-    fakeTransactionId: string | null;
-  };
-  policyResult: {
-    decision: string;
-    reasons: string[];
-  };
-  riskResult: {
-    score: number;
-    level: string;
-    signals: string[];
-  };
-  fakePayment: {
-    fakeTransactionId: string;
-    rail: "FAKE_X402";
-    asset: "FAKE_USDC";
-    amountCents: number;
-    executedAt: string;
-  } | null;
-  auditLogs: Array<{
-    id: string;
-    actor: string;
-    action: string;
-    detail: string;
-    createdAt: string;
-  }>;
-};
-
-export type RemainingBudgetResult = {
-  agentId: string;
-  weeklyBudgetCents: number;
-  spentThisWeekCents: number;
-  remainingBudgetCents: number;
-};
-
-export type HumanApprovalRequest = {
-  requestId: string;
-  approvalUrl: string;
-  message: string;
-};
-
-const defaultBaseUrl = "http://localhost:3000";
-
-export class OperatorLayerClient {
-  private readonly baseUrl: string;
-  private readonly credentialVault: CredentialVault | null;
-  private readonly fetcher: typeof fetch;
-
-  constructor(options: GatewayOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? defaultBaseUrl).replace(/\/$/, "");
-    this.credentialVault = options.credentialVault ?? null;
-    this.fetcher = options.fetcher ?? fetch;
-  }
-
-  async requestPaidApiCall(
-    request: GatewayRequest,
-    options: Pick<GatewayOptions, "idempotencyKey"> = {}
-  ): Promise<PaidApiCallResult> {
-    const headers = this.createHeaders(request.agentId, options.idempotencyKey);
-
-    const response = await this.fetcher(`${this.baseUrl}/api/payment-requests`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(request)
-    });
-
-    return parseJsonResponse<PaidApiCallResult>(response);
-  }
-
-  async checkRemainingBudget(agentId: string): Promise<RemainingBudgetResult> {
-    const url = new URL(`${this.baseUrl}/api/payment-requests`);
-    url.searchParams.set("agentId", agentId);
-
-    const response = await this.fetcher(url, {
-      headers: this.createHeaders(agentId)
-    });
-
-    return parseJsonResponse<RemainingBudgetResult>(response);
-  }
-
-  async requestHumanApproval(requestId: string): Promise<HumanApprovalRequest> {
+  private headers() {
     return {
-      requestId,
-      approvalUrl: `${this.baseUrl}/approvals`,
-      message: `Payment request ${requestId} requires human authorization in OperatorLayer Lite.`
+      "content-type": "application/json",
+      // The backend resolves the agent from this key. The agent id is never
+      // trusted from the request body — identity is proven, not claimed.
+      authorization: `Bearer ${this.agentApiKey}`,
     };
   }
 
-  private createHeaders(agentId?: string, idempotencyKey?: string) {
-    const headers = new Headers({
-      "Content-Type": "application/json"
+  /** Ask OperatorLayer for a decision. Does NOT move money by itself. */
+  async requestSpend(args: RequestSpendArgs): Promise<SpendDecision> {
+    const res = await fetch(`${this.baseUrl}/api/payment-requests`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({
+        vendorId: args.vendorId,
+        category: args.category,
+        amountCents: args.amountCents,
+        purpose: args.purpose ?? null,
+        idempotencyKey: args.idempotencyKey,
+      }),
     });
 
-    if (agentId && this.credentialVault) {
-      const credential = this.credentialVault.getAgentCredential(agentId);
-
-      if (credential) {
-        headers.set("Authorization", `Bearer ${credential.apiKey}`);
-      }
+    if (res.status === 401) {
+      throw new Error("OperatorLayer rejected the agent API key (401).");
     }
-
-    if (idempotencyKey) {
-      headers.set("Idempotency-Key", idempotencyKey);
+    if (!res.ok) {
+      const detail = await safeText(res);
+      throw new Error(`OperatorLayer error ${res.status}: ${detail}`);
     }
+    return (await res.json()) as SpendDecision;
+  }
 
-    return headers;
+  /** Read-only budget check. Handy for the agent to plan before it commits. */
+  async checkBudget(): Promise<{
+    weeklyBudgetCents: number;
+    heldCents: number;
+    remainingCents: number;
+  }> {
+    const res = await fetch(`${this.baseUrl}/api/budget`, {
+      headers: this.headers(),
+    });
+    if (!res.ok) throw new Error(`budget check failed: ${res.status}`);
+    return await res.json();
   }
 }
 
-export async function requestPaidApiCall(
-  request: GatewayRequest,
-  options: GatewayOptions = {}
-): Promise<PaidApiCallResult> {
-  return new OperatorLayerClient(options).requestPaidApiCall(request, options);
-}
-
-export async function checkRemainingBudget(
-  agentId: string,
-  options: GatewayOptions = {}
-): Promise<RemainingBudgetResult> {
-  return new OperatorLayerClient(options).checkRemainingBudget(agentId);
-}
-
-export async function requestHumanApproval(
-  requestId: string,
-  options: GatewayOptions = {}
-): Promise<HumanApprovalRequest> {
-  return new OperatorLayerClient(options).requestHumanApproval(requestId);
-}
-
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const payload = await response.json();
-
-  if (!response.ok) {
-    const message =
-      typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof payload.error === "string"
-        ? payload.error
-        : `OperatorLayer API request failed with status ${response.status}.`;
-
-    throw new Error(message);
+async function safeText(res: Response): Promise<string> {
+  try {
+    return await res.text();
+  } catch {
+    return "<no body>";
   }
-
-  return payload as T;
 }

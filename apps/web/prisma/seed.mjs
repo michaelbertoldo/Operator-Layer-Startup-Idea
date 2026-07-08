@@ -287,13 +287,12 @@ async function main() {
   });
 }
 
-function createAgentApiKey(apiKey, agentId, name) {
+function createAgentApiKey(apiKey, agentId, label) {
   return {
     id: `aak_${agentId}`,
     agentId,
-    name,
-    keyHash: createHash("sha256").update(apiKey).digest("hex"),
-    keyPrefix: apiKey.slice(0, 8)
+    label,
+    keyHash: createHash("sha256").update(apiKey).digest("hex")
   };
 }
 

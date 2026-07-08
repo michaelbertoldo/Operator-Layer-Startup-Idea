@@ -8,10 +8,9 @@ datasource db {
 }
 
 enum ReservationState {
-  ACTIVE
-  CAPTURED
-  RELEASED
-  EXPIRED
+  HELD     // budget committed, outcome pending
+  SETTLED  // spend went through, hold becomes permanent spend
+  RELEASED // rejected/failed, budget given back
 }
 
 model Company {
@@ -28,7 +27,6 @@ model Company {
   policies        Policy[]
   paymentRequests PaymentRequest[]
   auditLogs       AuditLog[]
-  idempotencyKeys IdempotencyKey[]
   anomalyEvents   SpendAnomalyEvent[]
 }
 
@@ -60,7 +58,6 @@ model Agent {
   policy                Policy?          @relation(fields: [policyId], references: [id])
   paymentRequests       PaymentRequest[]
   budgetPeriods         AgentBudgetPeriod[]
-  reservations          SpendReservation[]
   idempotencyKeys       IdempotencyKey[]
   apiKeys               AgentApiKey[]
   anomalyEvents         SpendAnomalyEvent[]
@@ -87,6 +84,7 @@ model Policy {
   weeklyBudgetCents              Int
   approvalThresholdCents         Int
   allowedCategories              String
+  sensitiveCategories            String?
   requireApprovalForNewVendor    Boolean
   createdAt                      DateTime @default(now())
   company                        Company  @relation(fields: [companyId], references: [id])
@@ -104,6 +102,7 @@ model PaymentRequest {
   policyDecision String
   riskLevel      String
   riskScore      Int        @default(0)
+  policySnapshot String?    // snapshot of policy at request time
   fakeTransactionId String?
   fakeRail       String?
   fakeAsset      String?
@@ -114,7 +113,6 @@ model PaymentRequest {
   vendor         Vendor     @relation(fields: [vendorId], references: [id])
   auditLogs      AuditLog[]
   reservation    SpendReservation?
-  idempotencyKey IdempotencyKey?
 }
 
 model AuditLog {
@@ -135,10 +133,9 @@ model AuditLog {
 model AgentBudgetPeriod {
   id                String             @id
   agentId           String
-  periodKey         String
-  budgetCents       Int
-  spentCents        Int                @default(0)
-  reservedCents     Int                @default(0)
+  periodKey         String             // e.g. "2026-W27"
+  limitCents        Int                // weekly budget limit
+  heldCents         Int                @default(0)  // single source of truth for committed budget
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   agent             Agent              @relation(fields: [agentId], references: [id])
@@ -150,52 +147,40 @@ model AgentBudgetPeriod {
 
 model SpendReservation {
   id               String             @id
-  agentId          String
-  budgetPeriodId   String
-  paymentRequestId String?            @unique
+  periodId         String
+  paymentRequestId String             @unique
   amountCents      Int
-  state            ReservationState    @default(ACTIVE)
-  expiresAt        DateTime?
+  state            ReservationState    @default(HELD)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
-  agent            Agent               @relation(fields: [agentId], references: [id])
-  budgetPeriod     AgentBudgetPeriod   @relation(fields: [budgetPeriodId], references: [id])
-  paymentRequest   PaymentRequest?     @relation(fields: [paymentRequestId], references: [id])
+  period           AgentBudgetPeriod   @relation(fields: [periodId], references: [id])
+  paymentRequest   PaymentRequest      @relation(fields: [paymentRequestId], references: [id])
 
-  @@index([agentId, state])
-  @@index([budgetPeriodId, state])
+  @@index([periodId, state])
 }
 
 model IdempotencyKey {
   id               String          @id
-  companyId        String
-  agentId          String?
-  paymentRequestId String?         @unique
+  agentId          String
   key              String
-  requestHash      String
-  responseBody     String?
+  paymentRequestId String
   createdAt        DateTime        @default(now())
-  company          Company         @relation(fields: [companyId], references: [id])
-  agent            Agent?          @relation(fields: [agentId], references: [id])
-  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  agent            Agent           @relation(fields: [agentId], references: [id])
 
-  @@unique([companyId, key])
-  @@index([agentId])
+  @@unique([agentId, key])
 }
 
 model AgentApiKey {
   id              String    @id
   agentId         String
-  name            String
-  keyHash         String    @unique
-  keyPrefix       String
-  lastUsedAt      DateTime?
-  revokedAt       DateTime?
+  keyHash         String    @unique  // sha256 of the presented token
+  label           String?
+  revokedAt       DateTime? // non-null = instant kill switch
   createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime?
   agent           Agent     @relation(fields: [agentId], references: [id])
 
   @@index([agentId])
-  @@index([keyPrefix])
 }
 
 model SpendAnomalyEvent {
