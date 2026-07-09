@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     spentThisWeekCents,
     vendorStatus: vendor.status as "APPROVED" | "PENDING" | "NEW" | "BLOCKED",
     category: body.category,
-    allowedCategories: agentRow.policy.allowedCategories,
+    allowedCategories: agentRow.policy.allowedCategories.split("|"),
     requireApprovalForNewVendor: agentRow.policy.requireApprovalForNewVendor,
   });
 
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
       agentWeeklyBudgetCents: agentRow.policy.weeklyBudgetCents,
       spentThisWeekCents,
       maxTransactionCents: agentRow.policy.maxTransactionCents,
-      sensitiveCategories: agentRow.policy.sensitiveCategories ?? [],
+      sensitiveCategories: agentRow.policy.sensitiveCategories?.split("|") ?? [],
     },
   });
 
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
       const reservation = await reserveBudget(tx, {
         agentId: agent.agentId,
         periodKey,
-        limitCents: agentRow.policy.weeklyBudgetCents,
+        limitCents: agentRow.policy!.weeklyBudgetCents,
         amountCents: body.amountCents,
         paymentRequestId,
       });
@@ -154,7 +154,10 @@ export async function POST(req: Request) {
 
     // Execute the fake payment for clean auto-approvals; settle the hold.
     if (statusToStore === "EXECUTED" && reservationId) {
-      const receipt = fakePaymentExecutor({ amountCents: body.amountCents });
+      const receipt = fakePaymentExecutor({
+        paymentRequestId,
+        amountCents: body.amountCents,
+      });
       await settleReservation(tx, reservationId);
       await appendAuditLog(tx, {
         companyId: agentRow.companyId,

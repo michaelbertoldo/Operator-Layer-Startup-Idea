@@ -1,0 +1,21 @@
+{
+  "provider": "railway",
+  "displayName": "Railway",
+  "envVarName": "RAILWAY_TOKEN",
+  "keyType": "single-token",
+  "baseUrl": "https://backboard.railway.app/graphql/v2",
+  "authHeader": "Authorization",
+  "availableScopes": [
+    "read:projects",
+    "write:projects",
+    "read:deployments",
+    "write:deployments"
+  ],
+  "dashboardUrl": "https://railway.app/account/tokens",
+  "deviceAuth": {
+    "command": "railway",
+    "args": ["login", "--browserless"],
+    "tokenPath": "token"
+  },
+  "instructions": "Railway supports CLI-based device auth. The CLI will open a browser for authentication, then return a token that will be securely stored in OperatorLayer's vault. You will never see the raw token value."
+}

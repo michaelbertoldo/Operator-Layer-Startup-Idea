@@ -1,0 +1,11 @@
+{
+  "provider": "anthropic",
+  "displayName": "Anthropic",
+  "envVarName": "ANTHROPIC_API_KEY",
+  "keyType": "api-key",
+  "baseUrl": "https://api.anthropic.com",
+  "authHeader": "x-api-key",
+  "availableScopes": [],
+  "dashboardUrl": "https://console.anthropic.com/settings/keys",
+  "instructions": "Anthropic API keys must be created manually at console.anthropic.com. Once created, you will paste the key through a secure channel that the AI agent cannot access. The key will be encrypted and stored in OperatorLayer's vault."
+}

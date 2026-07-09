@@ -28,6 +28,7 @@ model Company {
   paymentRequests PaymentRequest[]
   auditLogs       AuditLog[]
   anomalyEvents   SpendAnomalyEvent[]
+  provisionedCredentials ProvisionedCredential[]
 }
 
 model User {
@@ -196,4 +197,27 @@ model SpendAnomalyEvent {
   @@index([companyId, createdAt])
   @@index([agentId, createdAt])
   @@index([kind])
+}
+
+/// Provisioned third-party API credentials, stored encrypted.
+/// Created through OperatorLayer Connect's guided provisioning flow.
+model ProvisionedCredential {
+  id              String    @id
+  companyId       String
+  vendorId        String    // matches Vendor.id
+  provider        String    // "railway", "anthropic", etc.
+  envVarName      String    // "RAILWAY_TOKEN", "ANTHROPIC_API_KEY"
+  encryptedValue  String    // AES-256-GCM encrypted secret
+  encryptionIv    String    // Initialization vector for AES-GCM
+  scopes          String?   // JSON array of granted scopes
+  provisionedBy   String    // agentId or userId who approved provisioning
+  provisionedAt   DateTime  @default(now())
+  revokedAt       DateTime?
+  lastUsedAt      DateTime?
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, vendorId])
+  @@index([companyId, provider])
+  @@index([provider])
 }
